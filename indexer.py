@@ -6,10 +6,15 @@ from nltk.stem import PorterStemmer
 from collections import Counter, defaultdict
 import pickle
 import re
+from bs4 import XMLParsedAsHTMLWarning
+import warnings
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 CHUNK_SIZE = 14000
 CHUNK_DIR = "index_chunks"
-index_file="index.pkl"
+index_file= "index.pkl"
+MAPPING_FILE = "doc_mapping.pkl"
 
 def preprocess_text(content):
     """
@@ -36,10 +41,20 @@ def parse_url_content(content):
     
     """
     IMPORTANT_TAGS = ["title", "h1", "h2", "h3", "b", "strong"]
-    soup = BeautifulSoup(content, "html.parser")
+    try:
+        soup = BeautifulSoup(content, "lxml")
+    except:
+        try:
+            soup = BeautifulSoup(content, "html.parser")
+        except:
+            return [], set()
     important_tokens = set()
     all_tokens = []
     
+    # Remove script and style
+    for element in soup(['script', 'style', 'noscript']):
+        element.decompose()
+
     # for important text
     for tag in IMPORTANT_TAGS:
         for ele in soup.find_all(tag):
@@ -104,10 +119,15 @@ def merge_chunks():
     
         for token, postings in partial_index.items():
             final_index[token].extend(postings)
-            
+        
+        #delete temp doc
+        os.remove(file_path)
+
     with open(index_file, "wb") as f:
         pickle.dump(final_index, f)
     
+    return final_index
+
 def read_json():
     """
     Read the json files from DEV folder/sub folders
@@ -123,25 +143,43 @@ def read_json():
     DOC_ID = 0
     CHUNK_ID = 0
     CHUNK_INDEX = defaultdict(list)
+    DOC_ID_TO_URL = {}
+    URL_SEEN = set()
+
+    os.makedirs(CHUNK_DIR, exist_ok=True)
     
     for root, dirs, files in os.walk(ROOT_DIR):
         for file in files:
             
             if file.endswith(".json"):
                 
-                DOC_ID += 1
+                #DOC_ID += 1 reomove this 
+                #because When skipping duplicate URLs, 
+                #DOC_ID is also incremented, resulting in an inaccurate DOC_ID.
                 file_path = os.path.join(root, file)
                 
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        # url = data['url']
+                        
+                        url = data['url']
                         content = data['content']
+                        
+                        #url duplication
+                        if '#' in url:
+                            url = url.split('#')[0]
+                        if url in URL_SEEN:
+                            continue
+                        URL_SEEN.add(url)
+
+                        DOC_ID_TO_URL[DOC_ID] = url
 
                         all_tokens, important_tokens = parse_url_content(content)
 
                         build_index(DOC_ID, all_tokens, important_tokens, CHUNK_INDEX)
-                        
+
+                        DOC_ID += 1
+
                         # if the doc count hits 14000, it is stored in one chunk
                         if DOC_ID % CHUNK_SIZE == 0:
                             save_chunk(CHUNK_INDEX, CHUNK_ID)
@@ -154,6 +192,10 @@ def read_json():
     if CHUNK_INDEX:
         save_chunk(CHUNK_INDEX, CHUNK_ID)
         
+    #save url
+    with open(MAPPING_FILE, "wb") as f:
+        pickle.dump(DOC_ID_TO_URL, f)
+
     return DOC_ID
    
 def compute_analytics(total_doc):
