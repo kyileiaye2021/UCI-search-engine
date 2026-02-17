@@ -2,3 +2,5 @@
 DEV/
 __pycache__/
 venv/
+index.pkl
+index_chunks
