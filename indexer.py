@@ -8,7 +8,7 @@ import pickle
 import re
 
 CHUNK_SIZE = 14000
-# create an inverted index to store the tokens and a list of postings 
+CHUNK_DIR = "index_chunks"
 
 def preprocess_text(content):
     """
@@ -82,11 +82,31 @@ def save_chunk(CHUNK_INDEX, CHUNK_ID):
     Return:
         None
     """
-    CHUNK_DIR = "index_chunks"
     filename = os.path.join(CHUNK_DIR,f"partial_{CHUNK_ID}.pkl")
     with open(filename, "wb") as f:
         pickle.dump(CHUNK_INDEX, f)
         
+def merge_chunks(output_file="index.pkl"):
+    """
+    Args:
+        output_file to save all inverted index
+    """
+    final_index = defaultdict(list) # to store all index stored across the chunks
+    
+    for file in sorted(os.listdir(CHUNK_DIR)):
+        if not file.startswith("partial_") or not file.endswith('.pkl'):
+            continue
+        
+        file_path = os.path.join(CHUNK_DIR, file)
+        with open(file_path, 'rb') as f:
+            partial_index = pickle.load(f)
+    
+        for token, postings in partial_index.items():
+            final_index[token].extend(postings)
+            
+    with open(output_file, "wb") as f:
+        pickle.dump(final_index, f)
+    
 def read_json():
     """
     Read the json files from DEV folder/sub folders
@@ -137,6 +157,7 @@ def read_json():
         
 def main():
     read_json()
+    merge_chunks()
     
 if __name__ == "__main__":
     main()
