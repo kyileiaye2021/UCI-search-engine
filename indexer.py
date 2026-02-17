@@ -9,6 +9,7 @@ import re
 
 CHUNK_SIZE = 14000
 CHUNK_DIR = "index_chunks"
+index_file="index.pkl"
 
 def preprocess_text(content):
     """
@@ -86,7 +87,7 @@ def save_chunk(CHUNK_INDEX, CHUNK_ID):
     with open(filename, "wb") as f:
         pickle.dump(CHUNK_INDEX, f)
         
-def merge_chunks(output_file="index.pkl"):
+def merge_chunks():
     """
     Args:
         output_file to save all inverted index
@@ -104,7 +105,7 @@ def merge_chunks(output_file="index.pkl"):
         for token, postings in partial_index.items():
             final_index[token].extend(postings)
             
-    with open(output_file, "wb") as f:
+    with open(index_file, "wb") as f:
         pickle.dump(final_index, f)
     
 def read_json():
@@ -118,20 +119,18 @@ def read_json():
     Args: None
     Return: None
     """
-    ROOT_DIR = "TEST_DATA"
+    ROOT_DIR = "DEV"
     DOC_ID = 0
     CHUNK_ID = 0
     CHUNK_INDEX = defaultdict(list)
     
     for root, dirs, files in os.walk(ROOT_DIR):
         for file in files:
-            print(file)
             
             if file.endswith(".json"):
                 
                 DOC_ID += 1
                 file_path = os.path.join(root, file)
-                print(f"Reading: {file_path}")
                 
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
@@ -155,9 +154,29 @@ def read_json():
     if CHUNK_INDEX:
         save_chunk(CHUNK_INDEX, CHUNK_ID)
         
-def main():
-    read_json()
-    merge_chunks()
+    return DOC_ID
+   
+def compute_analytics(total_doc):
+    """
+    Generating for report:
+    - Num of indexed docs
+    - Num of unique tokens
+    - Total size of the index
+    """
+    with open(index_file, 'rb') as f:
+        index = pickle.load(f)
+        
+    num_of_unique_tokens = len(index)
+    size_bytes = os.path.getsize(index_file)
+    size_kb = size_bytes / 1024
     
+    print(f"Num of indexed documents: {total_doc}")
+    print(f"Num of unique tokens: {num_of_unique_tokens}")
+    print(f"Total size (KB) of the index: {size_kb}")
+    
+def main():
+    total_doc = read_json()
+    merge_chunks()
+    compute_analytics(total_doc)
 if __name__ == "__main__":
     main()

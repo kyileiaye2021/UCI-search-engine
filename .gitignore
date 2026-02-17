@@ -1,2 +1,4 @@
 # Large crawl data
 DEV/
+__pycache__/
+venv/
