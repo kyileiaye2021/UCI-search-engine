@@ -1,20 +1,22 @@
 import json
 from posting import Posting
 import os
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning, MarkupResemblesLocatorWarning
 from nltk.stem import PorterStemmer
 from collections import Counter, defaultdict
 import pickle
 import re
-from bs4 import XMLParsedAsHTMLWarning
 import warnings
+from encode import encode
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 CHUNK_SIZE = 14000
-CHUNK_DIR = "index_chunks"
-index_file= "index.pkl"
+CHUNK_DIR = "index_chunks" # directory to store chunks of index 
+MERGED_INDEX_FILE = "merged_index.bin" # to store posting bytes
 MAPPING_FILE = "doc_mapping.pkl"
+BYTE_POSITION_OFFSET_FILE = "byte_position.pkl"
 
 def preprocess_text(content):
     """
@@ -104,11 +106,19 @@ def save_chunk(CHUNK_INDEX, CHUNK_ID):
         
 def merge_chunks():
     """
-    Args:
-        output_file to save all inverted index
+    Combine and merge all chunk index into final merged index
+    Store the byte positions of each term and len of posting list for the term in BYTE_POSITION_OFFSET.pkl file 
+    
+    For each term and posting lists
+    - encode them to bytes to shrink the index size and access the query term in O(1) time
+    - add the bytes of posting lists to MERGED_INDEX_FILE
+    - keep track of the offset (start of the query term) and len of posting bytes (to keep track of where the postings end for that term)
     """
     final_index = defaultdict(list) # to store all index stored across the chunks
+    byte_position = defaultdict(tuple) # to store the byte postions of each term to know where to start looking for the term in pkl file
+    offset = 0
     
+    #building final index
     for file in sorted(os.listdir(CHUNK_DIR)):
         if not file.startswith("partial_") or not file.endswith('.pkl'):
             continue
@@ -123,14 +133,23 @@ def merge_chunks():
         #delete temp doc
         os.remove(file_path)
 
-    with open(index_file, "wb") as f:
-        pickle.dump(final_index, f)
+    # writing the final data to index file and meta data (offset) file
+    with open(MERGED_INDEX_FILE, "wb") as f:
+        for term in sorted(final_index):
+            postings = final_index[term]
+            postings.sort(key=lambda p: p.doc_id)  # sort the postings by doc id
+            posting_bytes = encode(postings) # encode postings for each term
+            byte_position[term] = (offset, len(posting_bytes)) 
+            f.write(posting_bytes) # write posting bytes
+            offset += len(posting_bytes)
     
-    return final_index
-
+    with open(BYTE_POSITION_OFFSET_FILE, "wb") as f:
+        pickle.dump(byte_position, f)
+    
 def read_json():
     """
     Read the json files from DEV folder/sub folders
+    Check if the page is duplicated
     Extract content from the files
     Preprocess the text and important tokens
     Build inverted index in chunks
@@ -205,16 +224,17 @@ def compute_analytics(total_doc):
     - Num of unique tokens
     - Total size of the index
     """
-    with open(index_file, 'rb') as f:
-        index = pickle.load(f)
+    with open(BYTE_POSITION_OFFSET_FILE, 'rb') as f:
+        byte_position = pickle.load(f)
         
-    num_of_unique_tokens = len(index)
-    size_bytes = os.path.getsize(index_file)
+    num_of_unique_tokens = len(byte_position)
+    size_bytes = os.path.getsize(MERGED_INDEX_FILE)
     size_kb = size_bytes / 1024
     
     print(f"Num of indexed documents: {total_doc}")
     print(f"Num of unique tokens: {num_of_unique_tokens}")
-    print(f"Total size (KB) of the index: {size_kb}")
+    print(f"Total size (bytes): {size_bytes}")
+    print(f"Total size (KB) of the index: {size_kb:.4f}")
     
 def main():
     total_doc = read_json()
