@@ -49,7 +49,7 @@ def hamming_distance(hash1, hash2):
         xor >>= 1
     return distance
 
-def is_near_duplicate(new_hash, existing_hashes, threshold=3):
+def is_near_duplicate(new_hash, existing_hashes, threshold=1):
     for existing_hash in existing_hashes:
         if hamming_distance(new_hash, existing_hash) <= threshold:
             return True
@@ -210,6 +210,8 @@ def merge_chunks():
     - add the bytes of posting lists to MERGED_INDEX_FILE
     - keep track of the offset (start of the query term) and len of posting bytes (to keep track of where the postings end for that term)
     """
+
+    print("Starting merge_chunks()...")
     final_index = defaultdict(list) # to store all index stored across the chunks
     byte_position = defaultdict(tuple) # to store the byte postions of each term to know where to start looking for the term in pkl file
     offset = 0
