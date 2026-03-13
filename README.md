@@ -1,7 +1,8 @@
 # Web Search Engine
 
 A lightweight end-to-end search engine for the UCI web corpus, with a Flask UI, disk-based inverted index, Boolean + ranked retrieval, and relevance boosting.
-<img width="1960" height="1204" alt="image" src="https://github.com/user-attachments/assets/2f234559-9bcd-464f-8001-e5ae734b4829" />
+<!-- <img width="1960" height="1204" alt="image" src="https://github.com/user-attachments/assets/2f234559-9bcd-464f-8001-e5ae734b4829" /> -->
+<img width="949" height="723" alt="Screenshot 2026-03-13 at 10 23 46 AM" src="https://github.com/user-attachments/assets/76168548-b1ea-44bc-be06-820ca4455062" />
 
 ## 1) Problem We Are Solving
 
